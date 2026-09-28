@@ -45,9 +45,10 @@ def get_ydl_base_opts() -> dict:
         'no_warnings': True,
         'nocheckcertificate': True,
         'geo_bypass': True,
+        'format': 'bestvideo*+bestaudio*/best',
         'extractor_args': {
             'youtube': {
-                'player_client': ['android', 'ios', 'tv_embedded', 'mweb']
+                'player_client': ['android', 'ios', 'mweb']
             }
         }
     }
@@ -70,14 +71,23 @@ def get_video_info(url: str) -> dict:
     """yt-dlp orqali yakka video ma'lumotlarini olish (noplaylist=True)."""
     ydl_opts = get_ydl_base_opts()
     ydl_opts['noplaylist'] = True
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(url, download=False)
-        return {
-            'id': info.get('id'),
-            'title': info.get('title', 'YouTube Video'),
-            'duration': info.get('duration', 0),
-            'url': info.get('webpage_url', url)
-        }
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+    except Exception as err:
+        if "Requested format is not available" in str(err):
+            ydl_opts['format'] = 'best'
+            with yt_dlp.YoutubeDL(ydl_opts) as fallback_ydl:
+                info = fallback_ydl.extract_info(url, download=False)
+        else:
+            raise err
+
+    return {
+        'id': info.get('id'),
+        'title': info.get('title', 'YouTube Video'),
+        'duration': info.get('duration', 0),
+        'url': info.get('webpage_url', url)
+    }
 
 def get_playlist_info(playlist_id: str) -> dict:
     """yt-dlp orqali playlist haqida umumiy ma'lumot va barcha videolar ro'yxatini olish."""
@@ -112,7 +122,7 @@ def download_media(url: str, fmt: str, output_prefix: str) -> tuple[str, str]:
     if fmt == 'mp3':
         ydl_opts = {
             **base_opts,
-            'format': 'bestaudio/best',
+            'format': 'bestaudio*/best',
             'outtmpl': outtmpl,
             'noplaylist': True,
             'postprocessors': [{
@@ -121,9 +131,18 @@ def download_media(url: str, fmt: str, output_prefix: str) -> tuple[str, str]:
                 'preferredquality': '192',
             }],
         }
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=True)
-            title = info.get('title', 'YouTube Audio')
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(url, download=True)
+                title = info.get('title', 'YouTube Audio')
+        except Exception as err:
+            if "Requested format is not available" in str(err):
+                ydl_opts['format'] = 'bestaudio/best'
+                with yt_dlp.YoutubeDL(ydl_opts) as fallback_ydl:
+                    info = fallback_ydl.extract_info(url, download=True)
+                    title = info.get('title', 'YouTube Audio')
+            else:
+                raise err
         return f"{output_prefix}.mp3", title
     else:
         height_map = {
@@ -134,14 +153,23 @@ def download_media(url: str, fmt: str, output_prefix: str) -> tuple[str, str]:
         max_height = height_map.get(fmt, '720')
         ydl_opts = {
             **base_opts,
-            'format': f'bestvideo[height<={max_height}]+bestaudio/best[height<={max_height}]/best',
+            'format': f'bestvideo*[height<={max_height}]+bestaudio*/best[height<={max_height}]/best',
             'merge_output_format': 'mp4',
             'outtmpl': outtmpl,
             'noplaylist': True,
         }
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=True)
-            title = info.get('title', 'YouTube Video')
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(url, download=True)
+                title = info.get('title', 'YouTube Video')
+        except Exception as err:
+            if "Requested format is not available" in str(err):
+                ydl_opts['format'] = 'best/bestvideo+bestaudio'
+                with yt_dlp.YoutubeDL(ydl_opts) as fallback_ydl:
+                    info = fallback_ydl.extract_info(url, download=True)
+                    title = info.get('title', 'YouTube Video')
+            else:
+                raise err
         
         # Yuklangan fayl kengaytmasini aniqlash
         for ext in ['mp4', 'mkv', 'webm']:

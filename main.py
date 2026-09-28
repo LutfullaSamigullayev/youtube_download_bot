@@ -134,7 +134,8 @@ def download_media(url: str, fmt: str, output_prefix: str) -> tuple[str, str]:
         max_height = height_map.get(fmt, '720')
         ydl_opts = {
             **base_opts,
-            'format': f'bestvideo[ext=mp4][height<={max_height}]+bestaudio[ext=m4a]/best[ext=mp4][height<={max_height}]/best',
+            'format': f'bestvideo[height<={max_height}]+bestaudio/best[height<={max_height}]/best',
+            'merge_output_format': 'mp4',
             'outtmpl': outtmpl,
             'noplaylist': True,
         }

@@ -44,21 +44,26 @@ def get_ydl_base_opts() -> dict:
         'quiet': True,
         'no_warnings': True,
         'nocheckcertificate': True,
+        'geo_bypass': True,
         'extractor_args': {
             'youtube': {
-                'player_client': ['ios', 'android', 'mweb']
+                'player_client': ['android', 'ios', 'tv_embedded', 'mweb']
             }
         }
     }
+    
+    # Render yoki local environment variables orqali cookies yozish
     cookies_env = os.getenv("YOUTUBE_COOKIES")
-    if cookies_env and not os.path.exists("cookies.txt"):
+    if cookies_env:
         try:
             with open("cookies.txt", "w", encoding="utf-8") as f:
-                f.write(cookies_env)
-        except Exception:
-            pass
-    if os.path.exists("cookies.txt"):
+                f.write(cookies_env.strip())
+        except Exception as e:
+            print(f"Cookies fayliga yozishda xatolik: {e}")
+
+    if os.path.exists("cookies.txt") and os.path.getsize("cookies.txt") > 0:
         opts['cookiefile'] = 'cookies.txt'
+
     return opts
 
 def get_video_info(url: str) -> dict:

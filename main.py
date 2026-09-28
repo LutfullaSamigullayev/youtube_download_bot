@@ -555,7 +555,23 @@ async def process_download_callback(callback: CallbackQuery):
         if downloaded_file and os.path.exists(downloaded_file):
             os.remove(downloaded_file)
 
+from aiohttp import web
+
+async def handle_health_check(request):
+    return web.Response(text="Bot is running live!")
+
+async def start_health_check_server():
+    port = int(os.getenv("PORT", 8080))
+    app = web.Application()
+    app.router.add_get('/', handle_health_check)
+    app.router.add_get('/health', handle_health_check)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, '0.0.0.0', port)
+    await site.start()
+
 async def main():
+    await start_health_check_server()
     await dp.start_polling(bot)
 
 if __name__ == "__main__":

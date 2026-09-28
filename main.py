@@ -38,13 +38,33 @@ def parse_youtube_url(url: str) -> tuple[str | None, str | None]:
 
     return video_id, playlist_id
 
-def get_video_info(url: str) -> dict:
-    """yt-dlp orqali yakka video ma'lumotlarini olish (noplaylist=True)."""
-    ydl_opts = {
+def get_ydl_base_opts() -> dict:
+    """yt-dlp uchun asosiy optionlarni tayyorlash (Cloud Server IP bot cheklovlarini aylanib o'tish uchun)."""
+    opts = {
         'quiet': True,
         'no_warnings': True,
-        'noplaylist': True,
+        'nocheckcertificate': True,
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['ios', 'android', 'mweb']
+            }
+        }
     }
+    cookies_env = os.getenv("YOUTUBE_COOKIES")
+    if cookies_env and not os.path.exists("cookies.txt"):
+        try:
+            with open("cookies.txt", "w", encoding="utf-8") as f:
+                f.write(cookies_env)
+        except Exception:
+            pass
+    if os.path.exists("cookies.txt"):
+        opts['cookiefile'] = 'cookies.txt'
+    return opts
+
+def get_video_info(url: str) -> dict:
+    """yt-dlp orqali yakka video ma'lumotlarini olish (noplaylist=True)."""
+    ydl_opts = get_ydl_base_opts()
+    ydl_opts['noplaylist'] = True
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=False)
         return {
@@ -57,11 +77,8 @@ def get_video_info(url: str) -> dict:
 def get_playlist_info(playlist_id: str) -> dict:
     """yt-dlp orqali playlist haqida umumiy ma'lumot va barcha videolar ro'yxatini olish."""
     url = f"https://www.youtube.com/playlist?list={playlist_id}"
-    ydl_opts = {
-        'quiet': True,
-        'no_warnings': True,
-        'extract_flat': True,
-    }
+    ydl_opts = get_ydl_base_opts()
+    ydl_opts['extract_flat'] = True
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=False)
         entries = info.get('entries', [])
@@ -85,9 +102,11 @@ def download_media(url: str, fmt: str, output_prefix: str) -> tuple[str, str]:
     Qaytargan qiymat: (fayl_yo'li, video_nomi)
     """
     outtmpl = f"{output_prefix}.%(ext)s"
+    base_opts = get_ydl_base_opts()
     
     if fmt == 'mp3':
         ydl_opts = {
+            **base_opts,
             'format': 'bestaudio/best',
             'outtmpl': outtmpl,
             'noplaylist': True,
@@ -96,8 +115,6 @@ def download_media(url: str, fmt: str, output_prefix: str) -> tuple[str, str]:
                 'preferredcodec': 'mp3',
                 'preferredquality': '192',
             }],
-            'quiet': True,
-            'no_warnings': True,
         }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
@@ -111,11 +128,10 @@ def download_media(url: str, fmt: str, output_prefix: str) -> tuple[str, str]:
         }
         max_height = height_map.get(fmt, '720')
         ydl_opts = {
+            **base_opts,
             'format': f'bestvideo[ext=mp4][height<={max_height}]+bestaudio[ext=m4a]/best[ext=mp4][height<={max_height}]/best',
             'outtmpl': outtmpl,
             'noplaylist': True,
-            'quiet': True,
-            'no_warnings': True,
         }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
